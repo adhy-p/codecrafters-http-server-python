@@ -18,14 +18,19 @@ def main():
     msg = client.recv(1024)
     headers = msg.split(b"\r\n")[0]
     method, path, version = headers.split()
+
     response = b""
     echo_idx = path.find(b"/echo")
-    if echo_idx != -1:
+
+    if path == b"/":
+        response = OK + END
+    elif echo_idx != -1:
         message = path[echo_idx + len("/echo/"):]
         resp_header = OK + CONTENT_TYPE + gen_content_len(len(message)) + END
         response = resp_header + message
     else:
         response = NOT_FOUND + END
+
     client.sendall(response)
 
 
