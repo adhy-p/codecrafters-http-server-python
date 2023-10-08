@@ -25,6 +25,10 @@ def gen_content_len(n: int):
     return f"Content-Length: {n}\r\n".encode()
 
 
+def handle_index():
+    return OK + CONTENT_TYPE + gen_content_len(0) + END
+
+
 def handle_echo(path, echo_idx):
     message = path[echo_idx + len("/echo/"):]
     resp_header = OK + CONTENT_TYPE + gen_content_len(len(message)) + END
@@ -41,10 +45,11 @@ def handle_new_client(server_sock, active_conn):
     active_conn.append(client)
 
 
-def handle_request(client):
+def handle_request(client, active_conn):
     msg = client.recv(1024)
 
     if not msg:
+        active_conn.remove(client)
         return
 
     headers, *body = msg.split(b"\r\n\r\n")
@@ -54,14 +59,14 @@ def handle_request(client):
     path = headers_dict['path']
 
     if path == b"/":
-        response = OK + END
+        response = handle_index()
     elif (echo_idx := path.find(b"/echo")) != -1:
         response = handle_echo(path, echo_idx)
     elif path.find(b"/user-agent") != -1:
         response = handle_user_agent(headers_dict['User-Agent'])
     else:
         response = NOT_FOUND + END
-
+    print(response)
     client.sendall(response)
 
 
@@ -78,7 +83,7 @@ def main():
             if s is server_socket:
                 handle_new_client(s, active_conn)
             else:
-                handle_request(s)
+                handle_request(s, active_conn)
         for s in exceptions:
             active_conn.remove(s)
             s.close()
