@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 OK = b"HTTP/1.1 200 OK\r\n"
+CREATED = b"HTTP/1.1 201 OK\r\n"
 NOT_FOUND = b"HTTP/1.1 404 Not Found\r\n"
 CT_TEXTPLAIN = b"Content-Type: text/plain\r\n"
 CT_APPSTREAM = b"Content-Type: application/octet-stream\r\n"
@@ -20,11 +21,14 @@ class HTTPServer:
         self.server_socket.setblocking(0)
         self.active_conn = [self.server_socket]
         self.content_dir = dir_path
-        self.SUPPORTED_ENDPOINTS = {
+        self.SUPPORTED_GET_ENDPOINTS = {
                 b'': self.handle_index,
                 b'echo': self.handle_echo,
                 b'user-agent': self.handle_user_agent,
                 b'files': self.handle_get_file,
+            }
+        self.SUPPORTED_POST_ENDPOINTS = {
+                b'files': self.handle_post_file,
             }
 
     def handle_new_client(self, server_sock):
@@ -32,7 +36,7 @@ class HTTPServer:
         self.active_conn.append(client)
 
     def handle_request(self, client):
-        msg: bytes = client.recv(1024)
+        msg: bytes = client.recv(4096)
 
         if not msg:
             self.active_conn.remove(client)
@@ -41,15 +45,29 @@ class HTTPServer:
         headers: bytes
         body: list[bytes]
         headers, *body = msg.split(b"\r\n\r\n")
+        body: bytes
+        body = body[0] if len(body) == 1 else b"\r\n\r\n".join(body)
         headers_dict: dict[str, bytes] = self.parse_headers(headers)
+        while len(body) < int(headers_dict.get('Content-Length', 0)):
+            body += client.recv(4096)
 
         response: bytes
+        method: bytes = headers_dict['method']
         path: list[bytes] = headers_dict['path'].split(b'/')[1]
 
-        if path in self.SUPPORTED_ENDPOINTS:
-            response = self.SUPPORTED_ENDPOINTS[path](headers_dict, body)
+        if method == b'GET':
+            if path in self.SUPPORTED_GET_ENDPOINTS:
+                response = self.SUPPORTED_GET_ENDPOINTS[path](headers_dict, body)
+            else:
+                response = self.handle_not_found()
+        elif method == b'POST':
+            if path in self.SUPPORTED_POST_ENDPOINTS:
+                response = self.SUPPORTED_POST_ENDPOINTS[path](headers_dict, body)
+            else:
+                response = self.handle_not_found()
         else:
             response = self.handle_not_found()
+
         print(response)
         client.sendall(response)
 
@@ -127,8 +145,17 @@ class HTTPServer:
                 return header + data
         except FileNotFoundError:
             return self.handle_not_found()
-        except Exception as e:
-            print(e)
+
+    def handle_post_file(self, headers: dict[str, bytes], body: bytes)\
+            -> bytes:
+        uploaded_file = headers['path'].split(b'/')[2:]
+        uploaded_file: str = b"".join(uploaded_file).decode()
+        try:
+            with open(f"{self.content_dir}/{uploaded_file}", "wb") as f:
+                f.write(body)
+            header = CREATED + END
+            return header
+        except FileNotFoundError:
             return self.handle_not_found()
 
 
