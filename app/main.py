@@ -104,7 +104,7 @@ class HTTPServer:
 
     def handle_echo(self, headers: dict[str, bytes], body: bytes) -> bytes:
         message = headers['path'].split(b'/')[2:]
-        message: bytes = b"".join(message)
+        message: bytes = b"/".join(message)
         resp_header = OK + CT_TEXTPLAIN\
             + self.gen_content_len(len(message)) + END
         return resp_header + message
