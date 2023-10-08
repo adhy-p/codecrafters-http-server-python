@@ -1,3 +1,4 @@
+import select
 import socket
 
 OK = b"HTTP/1.1 200 OK\r\n"
@@ -35,12 +36,17 @@ def handle_user_agent(agent):
     return resp_header + agent
 
 
-def main():
-    print("Logs from your program will appear here!")
+def handle_new_client(server_sock, active_conn):
+    client, addr = server_sock.accept()
+    active_conn.append(client)
 
-    server_socket = socket.create_server(("localhost", 4221), reuse_port=True)
-    client, addr = server_socket.accept()
+
+def handle_request(client):
     msg = client.recv(1024)
+
+    if not msg:
+        return
+
     headers, *body = msg.split(b"\r\n\r\n")
     headers_dict = parse_headers(headers)
 
@@ -57,6 +63,25 @@ def main():
         response = NOT_FOUND + END
 
     client.sendall(response)
+
+
+def main():
+    print("Logs from your program will appear here!")
+
+    server_socket = socket.create_server(("localhost", 4221), reuse_port=True)
+    server_socket.setblocking(0)
+    active_conn = [server_socket]
+
+    while True:
+        readable, writable, exceptions = select.select(active_conn, [], [])
+        for s in readable:
+            if s is server_socket:
+                handle_new_client(s, active_conn)
+            else:
+                handle_request(s)
+        for s in exceptions:
+            active_conn.remove(s)
+            s.close()
 
 
 if __name__ == "__main__":
