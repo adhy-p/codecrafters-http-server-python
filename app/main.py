@@ -29,6 +29,10 @@ def handle_index():
     return OK + CONTENT_TYPE + gen_content_len(0) + END
 
 
+def handle_not_found():
+    return NOT_FOUND + CONTENT_TYPE + gen_content_len(0) + END
+
+
 def handle_echo(path, echo_idx):
     message = path[echo_idx + len("/echo/"):]
     resp_header = OK + CONTENT_TYPE + gen_content_len(len(message)) + END
@@ -65,7 +69,7 @@ def handle_request(client, active_conn):
     elif path.find(b"/user-agent") != -1:
         response = handle_user_agent(headers_dict['User-Agent'])
     else:
-        response = NOT_FOUND + END
+        response = handle_not_found()
     print(response)
     client.sendall(response)
 
