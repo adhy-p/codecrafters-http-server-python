@@ -153,8 +153,7 @@ class HTTPServer:
         try:
             with open(f"{self.content_dir}/{uploaded_file}", "wb") as f:
                 f.write(body)
-            header = CREATED + END
-            return header
+            return CREATED + CT_TEXTPLAIN + self.gen_content_len(0) + END
         except FileNotFoundError:
             return self.handle_not_found()
 
